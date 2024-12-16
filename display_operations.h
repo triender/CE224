@@ -27,7 +27,7 @@ void initDisplay() {
   delay(2000); // Pause for 2 seconds
 
   // Set rotation to 180 degrees
-  // display.setRotation(2);
+  display.setRotation(0);
 
   // Clear the buffer
   display.clearDisplay();

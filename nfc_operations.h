@@ -16,20 +16,16 @@ String token;
 
 //--------------------------------------------------------------------------------------------------------------------------
 // Define the key for Mifare Classic cards
-#define NR_SHORTSECTOR          (32)    // Number of short sectors on Mifare 1K/4K
-#define NR_LONGSECTOR           (8)     // Number of long sectors on Mifare 4K
-#define NR_BLOCK_OF_SHORTSECTOR (4)     // Number of blocks in a short sector
-#define NR_BLOCK_OF_LONGSECTOR  (16)    // Number of blocks in a long sector
+#define NR_SHORTSECTOR (32)         // Number of short sectors on Mifare 1K/4K
+#define NR_LONGSECTOR (8)           // Number of long sectors on Mifare 4K
+#define NR_BLOCK_OF_SHORTSECTOR (4) // Number of blocks in a short sector
+#define NR_BLOCK_OF_LONGSECTOR (16) // Number of blocks in a long sector
 
 // Determine the sector trailer block based on sector number
-#define BLOCK_NUMBER_OF_SECTOR_TRAILER(sector) (((sector)<NR_SHORTSECTOR)? \
-  ((sector)*NR_BLOCK_OF_SHORTSECTOR + NR_BLOCK_OF_SHORTSECTOR-1):\
-  (NR_SHORTSECTOR*NR_BLOCK_OF_SHORTSECTOR + (sector-NR_SHORTSECTOR)*NR_BLOCK_OF_LONGSECTOR + NR_BLOCK_OF_LONGSECTOR-1))
+#define BLOCK_NUMBER_OF_SECTOR_TRAILER(sector) (((sector) < NR_SHORTSECTOR) ? ((sector) * NR_BLOCK_OF_SHORTSECTOR + NR_BLOCK_OF_SHORTSECTOR - 1) : (NR_SHORTSECTOR * NR_BLOCK_OF_SHORTSECTOR + (sector - NR_SHORTSECTOR) * NR_BLOCK_OF_LONGSECTOR + NR_BLOCK_OF_LONGSECTOR - 1))
 
 // Determine the sector's first block based on the sector number
-#define BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(sector) (((sector)<NR_SHORTSECTOR)? \
-  ((sector)*NR_BLOCK_OF_SHORTSECTOR):\
-  (NR_SHORTSECTOR*NR_BLOCK_OF_SHORTSECTOR + (sector-NR_SHORTSECTOR)*NR_BLOCK_OF_LONGSECTOR))
+#define BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(sector) (((sector) < NR_SHORTSECTOR) ? ((sector) * NR_BLOCK_OF_SHORTSECTOR) : (NR_SHORTSECTOR * NR_BLOCK_OF_SHORTSECTOR + (sector - NR_SHORTSECTOR) * NR_BLOCK_OF_LONGSECTOR))
 
 // The default Mifare Classic key
 static const uint8_t KEY_DEFAULT_KEYAB[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -236,6 +232,7 @@ bool writeToken(const uint8_t *data, uint8_t block = blockToken)
   }
   resetPN532();
 }
+
 /**
  * @brief Reads a token from an NFC card.
  *
@@ -267,7 +264,7 @@ String readToken()
     Serial.println("No device detected.");
     return "";
   }
-  
+
   Serial.println("Device detected!");
 
   // Send the SELECT AID command
@@ -331,7 +328,7 @@ bool create()
   {
     return false;
   }
-  
+
   uint8_t response[64] = {0};
   sendRequest("create", nullptr, response);
 
@@ -365,7 +362,46 @@ bool login()
     Serial.println("Lost connection to WiFi");
     return false;
   }
+
+  //--------------------------------ADD PHONE OR CARD HEADER-----------------------------------
+  // Check if an NFC card is present
   resetPN532();
+  uint8_t cmd[] = {
+      0x00, 0xA4, 0x04, 0x00,                   // CLA, INS, P1, P2 (SELECT AID command)
+      0x07,                                     // Length of AID (7 bytes)
+      0xF0, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // AID (example)
+      0x00                                      // Le (expected length of response)
+  };
+
+  uint8_t rep[17];
+  uint8_t repLength;
+
+  // Wait until a device is in range
+  Serial.println("Waiting for device...");
+  uint8_t timer = 500;
+  while (!nfc.inListPassiveTarget() && timer-- > 0)
+  {
+    delay(10);
+  }
+  if (timer == 0)
+  {
+    Serial.println("No device detected.");
+    return "";
+  }
+
+  Serial.println("Device detected!");
+
+  // Send the SELECT AID command
+  if (nfc.inDataExchange(cmd, sizeof(cmd), rep, &repLength))
+  {
+    Serial.println("Data read from phone successfully");
+  }
+  else
+  {
+    Serial.println("Data read from card successfully");
+  }
+  resetPN532();
+  //--------------------------------------------------------------------------------------
   token = readToken();
   Serial.println(token);
   if (token.length() == 0)
@@ -434,8 +470,8 @@ bool remove()
 void reformatMifareClassicCard()
 {
   uint8_t success;
-  uint8_t uid[7] = {0}; // Buffer to store the returned UID
-  uint8_t uidLength;    // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+  uint8_t uid[7] = {0};    // Buffer to store the returned UID
+  uint8_t uidLength;       // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
   uint8_t blockBuffer[16]; // Buffer to store block contents
   uint8_t blankAccessBits[3] = {0xff, 0x07, 0x80};
   uint8_t idx = 0;
@@ -445,8 +481,10 @@ void reformatMifareClassicCard()
   Serial.println("and press any key to continue ...");
 
   // Wait for user input before proceeding
-  while (!Serial.available());
-  while (Serial.available()) Serial.read();
+  while (!Serial.available())
+    ;
+  while (Serial.available())
+    Serial.read();
 
   // Wait for an ISO14443A type card (Mifare, etc.)
   success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
@@ -454,7 +492,9 @@ void reformatMifareClassicCard()
   if (success)
   {
     Serial.println("Found an ISO14443A card/tag");
-    Serial.print("  UID Length: "); Serial.print(uidLength, DEC); Serial.println(" bytes");
+    Serial.print("  UID Length: ");
+    Serial.print(uidLength, DEC);
+    Serial.println(" bytes");
     Serial.print("  UID Value: ");
     nfc.PrintHex(uid, uidLength);
     Serial.println("");
@@ -476,7 +516,8 @@ void reformatMifareClassicCard()
       success = nfc.mifareclassic_AuthenticateBlock(uid, uidLength, BLOCK_NUMBER_OF_SECTOR_TRAILER(idx), 1, (uint8_t *)KEY_DEFAULT_KEYAB);
       if (!success)
       {
-        Serial.print("Authentication failed for sector "); Serial.println(idx);
+        Serial.print("Authentication failed for sector ");
+        Serial.println(idx);
         return;
       }
 
@@ -484,17 +525,20 @@ void reformatMifareClassicCard()
       memset(blockBuffer, 0, sizeof(blockBuffer));
       if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(idx), blockBuffer)))
       {
-        Serial.print("Unable to write to sector "); Serial.println(idx);
+        Serial.print("Unable to write to sector ");
+        Serial.println(idx);
         return;
       }
       if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(idx) + 1, blockBuffer)))
       {
-        Serial.print("Unable to write to sector "); Serial.println(idx);
+        Serial.print("Unable to write to sector ");
+        Serial.println(idx);
         return;
       }
       if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(idx) + 2, blockBuffer)))
       {
-        Serial.print("Unable to write to sector "); Serial.println(idx);
+        Serial.print("Unable to write to sector ");
+        Serial.println(idx);
         return;
       }
 
@@ -507,7 +551,8 @@ void reformatMifareClassicCard()
       // Write the trailer block
       if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_TRAILER(idx), blockBuffer)))
       {
-        Serial.print("Unable to write trailer block of sector "); Serial.println(idx);
+        Serial.print("Unable to write trailer block of sector ");
+        Serial.println(idx);
         return;
       }
     }
