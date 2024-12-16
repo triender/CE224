@@ -33,7 +33,10 @@ void setup(void)
 
   Serial.println("Enter 1 for login, 2 for create, 3 for remove, 4 for dump data, 5 write data, 6 for read data, 7 test door");
   Serial.println("Waiting for number");
+  displayResponse((uint8_t *)"Waiting for number");
 }
+
+String test;
 
 /**
  * @brief Controls the relay.
@@ -47,7 +50,6 @@ void controlRelay(uint8_t time = 10)
   noTone(BUZZER_PIN);
   delay(time * 1000);
   digitalWrite(RELAY_PIN, HIGH);
-  Serial.println("Door test");
 }
 
 void loop(void)
@@ -55,71 +57,81 @@ void loop(void)
   if (Serial.available() > 0)
   {
     int action = Serial.parseInt();
-    uint8_t response[64];
+    char response[64];
     switch (action)
     {
     case 1:
       Serial.println("Login");
       if (login())
       {
-        strcpy((char*)response, "Login successful");
+        strcpy(response, "Login successful");
         controlRelay(10); // Turn on relay for 10 seconds
       }
       else
       {
-        strcpy((char*)response, "Login failed");
+        strcpy(response, "Login failed");
       }
       break;
     case 2:
       Serial.println("Create");
       if (create())
       {
-        strcpy((char*)response, "Create successful");
+        strcpy(response, "Create successful");
       }
       else
       {
-        strcpy((char*)response, "Create failed");
+        strcpy(response, "Create failed");
       }
       break;
     case 3:
       Serial.println("Remove");
       if (remove())
       {
-        strcpy((char*)response, "Remove successful");
+        strcpy(response, "Remove successful");
       }
       else
       {
-        strcpy((char*)response, "Remove failed");
+        strcpy(response, "Remove failed");
       }
       break;
     case 4:
       Serial.println("Dump data from card");
       dumpData();
-      strcpy((char*)response, "Data dumped");
+      strcpy(response, "Data dumped");
       break;
     case 5:
       Serial.println("Write data");
-      writeToken((const uint8_t*)"Tokens");
-      strcpy((char*)response, "Data written");
+      writeToken((const uint8_t *)"Tokens");
+      strcpy(response, "Data written");
       break;
     case 6:
       Serial.println("Read data");
       readToken();
-      strcpy((char*)response, "Data read");
+      strcpy(response, "Data read");
       break;
     case 7:
       controlRelay(10);
-      strcpy((char*)response, "Door test");
+      strcpy(response, "Door test");
+      break;
+    case 8:
+      Serial.println("Format card to default");
+      reformatMifareClassicCard();
+      strcpy(response, "Card formatted to default");
+      break;
+    case 9:
+      Serial.println("test phone");
+      test = readToken();
+      Serial.print("token from read ");
+      Serial.println(test);
       break;
     default:
-      strcpy((char*)response, "Invalid action");
+      strcpy(response, "Invalid action");
       Serial.println("Invalid action. Enter 1 for login, 2 for create, 3 for remove, 4 for dump data, 5 for write Token, 6 for read Token, 7 for test door");
       break;
     }
-    Serial.println((char*)response);
-    displayResponse(response);
+    Serial.println(response);
+    displayResponse((uint8_t *)response);
     Serial.println("Waiting for number");
   }
   Serial.flush();
 }
-

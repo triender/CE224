@@ -27,7 +27,7 @@ void initDisplay() {
   delay(2000); // Pause for 2 seconds
 
   // Set rotation to 180 degrees
-  display.setRotation(2);
+  // display.setRotation(2);
 
   // Clear the buffer
   display.clearDisplay();
@@ -40,7 +40,7 @@ void initDisplay() {
  */
 void displayResponse(const uint8_t *response) {
   display.clearDisplay();
-  display.setTextSize(1);      // Normal 1:1 pixel scale
+  display.setTextSize(2);      // Normal 1:1 pixel scale
   display.setTextColor(SSD1306_WHITE); // Draw white text
   display.setCursor(0, 0);     // Start at top-left corner
   display.println((char*)response);
