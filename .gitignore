@@ -1,1 +1,5 @@
-.env
+# Secret credentials
+secrets.h
+
+# VS Code files
+.vscode/

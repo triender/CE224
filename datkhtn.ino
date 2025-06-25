@@ -9,12 +9,13 @@
 #include "server_operations.h"
 #include "display_operations.h"
 #include <ArduinoJson.h>
+#include "secrets.h" // Include the secrets file
 
 #define RELAY_PIN 13
 #define BUZZER_PIN 14
 
-const char *mqtt_server = "ch1cken.mywire.org";
-const char *mqtt_topic = "esp32/toDoor";
+const char *mqtt_server = MQTT_SERVER;
+const char *mqtt_topic = MQTT_TOPIC;
 
 WiFiClient espClient;
 PubSubClient clients(espClient);

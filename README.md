@@ -1,4 +1,4 @@
-# ESP32-NFC Smart Door Lock
+# CE224 - NFC Project
 
 ## Project Overview
 
