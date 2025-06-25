@@ -37,5 +37,3 @@ When a user presents an NFC card or smartphone to the reader, the system automat
 The system maintains a persistent connection to an MQTT broker, listening on a predefined topic. When an administrator wishes to grant new access, a message containing a command and a new token is published to this topic. The ESP32 device receives the message, parses its content, and switches to a card-writing mode. After the user presents a blank card and the writing process is complete, the system sends a status confirmation ("success" or "failure") back to the server.
 
 ---
-*Author: TriNguyen*
-*Date: June 25, 2023*
