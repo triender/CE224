@@ -24,10 +24,10 @@ void initDisplay() {
   
   display.clearDisplay();
   display.display();
-  delay(2000); // Pause for 2 seconds
+  delay(500);
 
   // Set rotation to 180 degrees
-  display.setRotation(0);
+  display.setRotation(2);
 
   // Clear the buffer
   display.clearDisplay();
@@ -40,9 +40,19 @@ void initDisplay() {
  */
 void displayResponse(const uint8_t *response) {
   display.clearDisplay();
-  display.setTextSize(2);      // Normal 1:1 pixel scale
+  display.setTextSize(1);      // Normal 1:1 pixel scale
   display.setTextColor(SSD1306_WHITE); // Draw white text
-  display.setCursor(0, 0);     // Start at top-left corner
+
+  // Calculate the width of the message in pixels
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.getTextBounds((char*)response, 0, 0, &x1, &y1, &w, &h);
+
+  // Calculate the starting position to center the text
+  int16_t x = (display.width() - w) / 2;
+  int16_t y = (display.height() - h) / 2;
+
+  display.setCursor(x, y);     // Set cursor to calculated position
   display.println((char*)response);
   display.display();
 }

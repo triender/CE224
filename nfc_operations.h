@@ -6,8 +6,9 @@
 #include <Adafruit_PN532.h>
 #include "server_operations.h"
 
+
 // Define the pins for SPI communication
-#define PN532_SS 4
+#define PN532_SS 15
 #define PN532_MOSI 23
 #define PN532_MISO 19
 #define PN532_SCK 18
@@ -312,259 +313,66 @@ String readToken()
 }
 
 /**
- * @brief Creates a new token on the NFC card and sends it to the server.
+ * @brief Reads a token from an NFC card.
  *
- * @return true if the token was created and sent successfully.
- * @return false if there was an error during the process.
+ * @param token Pointer to a String to store the token.
+ * @param device Pointer to a String to store the device type.
+ * @return True if the token was read successfully, false otherwise.
  */
-bool create()
-{
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.println("Lost connection to WiFi");
-    return false;
-  }
-  if (!writeToken((const uint8_t *)"Tokens", 8))
-  {
-    return false;
-  }
-
-  uint8_t response[64] = {0};
-  sendRequest("create", nullptr, response);
-
-  const char *expectedResponse = "Create processed. Token: ";
-  if (strncmp((char *)response, expectedResponse, strlen(expectedResponse)) == 0)
-  {
-    Serial.print("Token: ");
-    Serial.println((char *)response + strlen(expectedResponse));
-    printData(response + strlen(expectedResponse), 16);
-    if (writeToken(response + strlen(expectedResponse)))
-    {
-      Serial.println("Token written to NFC card successfully");
-      return true;
-    }
-  }
-  Serial.println("Failed to write token to NFC card");
-  Serial.println("Failed to create token");
-  return false;
-}
-
-/**
- * @brief Logs in using the token read from the NFC card.
- *
- * @return true if login was successful.
- * @return false if there was an error during the process.
- */
-bool login()
-{
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.println("Lost connection to WiFi");
-    return false;
-  }
-
-  //--------------------------------ADD PHONE OR CARD HEADER-----------------------------------
-  // Check if an NFC card is present
-  resetPN532();
-  uint8_t cmd[] = {
+bool readTokenLoop(String* token, String* device) {
+  *token = "";
+  *device = "";
+  
+  // APDU Command: SELECT AID
+  uint8_t command[] = {
       0x00, 0xA4, 0x04, 0x00,                   // CLA, INS, P1, P2 (SELECT AID command)
       0x07,                                     // Length of AID (7 bytes)
       0xF0, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, // AID (example)
       0x00                                      // Le (expected length of response)
   };
 
-  uint8_t rep[17];
-  uint8_t repLength;
-
-  // Wait until a device is in range
-  Serial.println("Waiting for device...");
-  uint8_t timer = 500;
-  while (!nfc.inListPassiveTarget() && timer-- > 0)
-  {
-    delay(10);
-  }
-  if (timer == 0)
-  {
-    Serial.println("No device detected.");
-    return "";
-  }
-
-  Serial.println("Device detected!");
+  uint8_t response[17];
+  uint8_t responseLength;
 
   // Send the SELECT AID command
-  if (nfc.inDataExchange(cmd, sizeof(cmd), rep, &repLength))
-  {
-    Serial.println("Data read from phone successfully");
-  }
-  else
-  {
-    Serial.println("Data read from card successfully");
-  }
-  resetPN532();
-  //--------------------------------------------------------------------------------------
-  token = readToken();
-  Serial.println(token);
-  if (token.length() == 0)
-  {
-    Serial.println("Failed to read token from NFC card.");
-    return false;
-  }
-
-  uint8_t response[64];
-  sendRequest("login", (uint8_t *)token.c_str(), response);
-  if (strcmp((char *)response, "Login processed") == 0)
+  if (nfc.inDataExchange(command, sizeof(command), response, &responseLength)) {
+    Serial.println("Data read from phone successfully:");
+    printData(response, responseLength);
+    *token = String((char *)response, responseLength);
+    *device = "phone";
     return true;
-  else
-  {
-    Serial.print("Login failed: ");
-    Serial.println((char *)response);
-    return false;
-  }
-  resetPN532();
-}
-
-/**
- * @brief Removes the token from the server using the token read from the NFC card.
- *
- * @return true if the token was removed successfully.
- * @return false if there was an error during the process.
- */
-bool remove()
-{
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.println("Lost connection to WiFi");
-    return false;
-  }
-
-  if (!readUID())
-  {
-    Serial.println("No NFC card found.");
-    return false;
-  }
-
-  String token = readToken();
-  if (token.length() == 0)
-  {
-    Serial.println("Failed to read token from NFC card.");
-    return false;
-  }
-
-  uint8_t response[64];
-  sendRequest("remove", (uint8_t *)token.c_str(), response);
-  if (strcmp((char *)response, "Remove processed") == 0)
-  {
-    return true;
-  }
-  else
-  {
-    Serial.print("Remove failed: ");
-    Serial.println((char *)response);
-    return false;
-  }
-}
-
-/**
- * @brief Reformats a Mifare Classic card.
- */
-void reformatMifareClassicCard()
-{
-  uint8_t success;
-  uint8_t uid[7] = {0};    // Buffer to store the returned UID
-  uint8_t uidLength;       // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
-  uint8_t blockBuffer[16]; // Buffer to store block contents
-  uint8_t blankAccessBits[3] = {0xff, 0x07, 0x80};
-  uint8_t idx = 0;
-  uint8_t numOfSector = 16; // Assume Mifare Classic 1K for now (16 4-block sectors)
-
-  Serial.println("Place your NDEF formatted Mifare Classic 1K card on the reader");
-  Serial.println("and press any key to continue ...");
-
-  // Wait for user input before proceeding
-  while (!Serial.available())
-    ;
-  while (Serial.available())
-    Serial.read();
-
-  // Wait for an ISO14443A type card (Mifare, etc.)
-  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
-
-  if (success)
-  {
-    Serial.println("Found an ISO14443A card/tag");
-    Serial.print("  UID Length: ");
-    Serial.print(uidLength, DEC);
-    Serial.println(" bytes");
-    Serial.print("  UID Value: ");
-    nfc.PrintHex(uid, uidLength);
-    Serial.println("");
-
-    if (uidLength != 4)
-    {
-      Serial.println("Ooops ... this doesn't seem to be a Mifare Classic card!");
-      return;
+  } else {
+    if (!readUID()) {
+      Serial.println("Failed to read UID");
+      resetPN532();
+      return false;
     }
 
-    Serial.println("Seems to be a Mifare Classic card (4 byte UID)");
-    Serial.println("");
-    Serial.println("Reformatting card for Mifare Classic (please don't touch it!) ... ");
+    if (!nfc.mifareclassic_AuthenticateBlock(uid, uidLength, blockToken, 1, keyuniversal)) {
+      Serial.println("Authentication failed");
+      resetPN532();
+      return false;
+    }
 
-    // Run through the card sector by sector
-    for (idx = 0; idx < numOfSector; idx++)
-    {
-      // Authenticate the current sector using key B
-      success = nfc.mifareclassic_AuthenticateBlock(uid, uidLength, BLOCK_NUMBER_OF_SECTOR_TRAILER(idx), 1, (uint8_t *)KEY_DEFAULT_KEYAB);
-      if (!success)
-      {
-        Serial.print("Authentication failed for sector ");
-        Serial.println(idx);
-        return;
-      }
-
-      // Write to the other blocks
-      memset(blockBuffer, 0, sizeof(blockBuffer));
-      if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(idx), blockBuffer)))
-      {
-        Serial.print("Unable to write to sector ");
-        Serial.println(idx);
-        return;
-      }
-      if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(idx) + 1, blockBuffer)))
-      {
-        Serial.print("Unable to write to sector ");
-        Serial.println(idx);
-        return;
-      }
-      if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_1ST_BLOCK(idx) + 2, blockBuffer)))
-      {
-        Serial.print("Unable to write to sector ");
-        Serial.println(idx);
-        return;
-      }
-
-      // Reset both keys to default
-      memcpy(blockBuffer, KEY_DEFAULT_KEYAB, sizeof(KEY_DEFAULT_KEYAB));
-      memcpy(blockBuffer + 6, blankAccessBits, sizeof(blankAccessBits));
-      blockBuffer[9] = 0x69;
-      memcpy(blockBuffer + 10, KEY_DEFAULT_KEYAB, sizeof(KEY_DEFAULT_KEYAB));
-
-      // Write the trailer block
-      if (!(nfc.mifareclassic_WriteDataBlock(BLOCK_NUMBER_OF_SECTOR_TRAILER(idx), blockBuffer)))
-      {
-        Serial.print("Unable to write trailer block of sector ");
-        Serial.println(idx);
-        return;
-      }
+    uint8_t data[16] = {0}; // Ensure data is 16 bytes long
+    uint8_t success = nfc.mifareclassic_ReadDataBlock(blockToken, data);
+    if (success) {
+      Serial.println("Data read from NFC card successfully:");
+      printData(data, 16);
+      *token = String((char *)data, 16);
+      *device = "card";
+      return true;
+    } else {
+      Serial.println("Failed to read data from NFC card");
+      *token = "";
+      *device = "";
+      return false;
     }
   }
-  else
-  {
-    Serial.println("No card found.");
-  }
 
-  Serial.println("\n\nDone!");
-  delay(1000);
-  Serial.flush();
+  // Reset the PN532
+  resetPN532();
+  return false;
 }
 
 #endif // NFC_OPERATIONS_H
